@@ -1,12 +1,32 @@
-version: '3.8'
 services:
-  mongo:
-    image: mongo:latest
-    container_name: mongodb
-    restart: always
+  # MongoDB - Vector Database
+  mongodb:
+    image: mongodb/mongodb-community-server:latest
+    container_name: mongodb_langchain
     ports:
       - "27017:27017"
     volumes:
-      - mongo-data:/data/db
+      - mongo_data:/data/db
+    environment:
+      - MONGODB_INITDB_DATABASE=langchain4j_db
+
+  # Ollama - Mistral LLM Host
+  ollama:
+    image: ollama/ollama:latest
+    container_name: ollama_mistral
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+    # Uncomment the deploy section below if you have an NVIDIA GPU
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           count: 1
+    #           capabilities: [gpu]
+
 volumes:
-  mongo-data:
+  mongo_data:
+  ollama_data:

@@ -1,30 +1,24 @@
-package com.langchain4j.memory.model;
+package com.langchain4j.memory.dto;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 
-public class Message {
+public class ChatRequest {
     @JsonProperty("content")
     private String content;
+    
     @JsonProperty("sender")
     private String sender;
-    @JsonProperty("timestamp")
-    private long timestamp;
 
-    public Message() {}
+    public ChatRequest() {}
 
-    public Message(String content, String sender) {
+    public ChatRequest(String content, String sender) {
         this.content = content;
         this.sender = sender;
-        this.timestamp = System.currentTimeMillis();
     }
 
-    // Getters and setters
     public String getContent() { return content; }
     public void setContent(String content) { this.content = content; }
 
     public String getSender() { return sender; }
     public void setSender(String sender) { this.sender = sender; }
-
-    public long getTimestamp() { return timestamp; }
-    public void setTimestamp(long timestamp) { this.timestamp = timestamp; }
 }
