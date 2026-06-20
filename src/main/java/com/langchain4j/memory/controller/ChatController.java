@@ -10,6 +10,9 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -21,6 +24,7 @@ public class ChatController {
 
     private final ConversationMemoryService conversationMemoryService;
     private final LLMService llmService;
+    private static final Logger log = LoggerFactory.getLogger(ChatController.class);
 
     @Autowired
     public ChatController(ConversationMemoryService conversationMemoryService, LLMService llmService) {
@@ -87,6 +91,7 @@ public class ChatController {
             return ResponseEntity.notFound().build();
         }
 
+        log.debug("aiChat called for conversationId='{}' content='{}'", conversationId, chatRequest.getContent());
         // Add user message
         Message userMessage = new Message(chatRequest.getContent(), "user");
         conversationMemoryService.addMessageToConversation(conversationId, userMessage);
@@ -98,12 +103,27 @@ public class ChatController {
             return ResponseEntity.notFound().build();
         }
 
-        // Generate AI response
-        String aiResponse = llmService.generateResponse(updatedConversation.get());
+        // First: try vector-based lookup (approximate semantic match)
+        java.util.Optional<String> cachedResponse = conversationMemoryService.findNearestResponseForQuery(chatRequest.getContent(), 0.80);
+        // Fallback: exact-match lookup
+        if (cachedResponse.isEmpty()) {
+            cachedResponse = conversationMemoryService.findResponseForQuery(chatRequest.getContent());
+        }
+
+        String aiResponse;
+        if (cachedResponse.isPresent()) {
+            aiResponse = cachedResponse.get();
+            log.debug("Using cached response for conversationId='{}'", conversationId);
+        } else {
+            log.debug("No cached response; calling LLM for conversationId='{}'", conversationId);
+            // Generate AI response
+            aiResponse = llmService.generateResponse(updatedConversation.get());
+        }
 
         // Add AI response to conversation
         Message assistantMessage = new Message(aiResponse, "assistant");
         conversationMemoryService.addMessageToConversation(conversationId, assistantMessage);
+        log.debug("Appended assistant message to conversationId='{}' ({} chars)", conversationId, aiResponse == null ? 0 : aiResponse.length());
 
         // Get final conversation with both messages
         Optional<Conversation> finalConversation = conversationMemoryService.getConversation(conversationId);
@@ -145,5 +165,19 @@ public class ChatController {
     @GetMapping("/health")
     public ResponseEntity<String> health() {
         return ResponseEntity.ok("Chat service is running");
+    }
+
+    /**
+     * Reindex embeddings for existing assistant messages
+     * POST /api/chat/reindex
+     */
+    @PostMapping("/reindex")
+    public ResponseEntity<String> reindexEmbeddings() {
+        try {
+            conversationMemoryService.reindexEmbeddings();
+            return ResponseEntity.ok("Reindex started/completed");
+        } catch (Exception e) {
+            return ResponseEntity.status(500).body("Reindex failed: " + e.getMessage());
+        }
     }
 }
